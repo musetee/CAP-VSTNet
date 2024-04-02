@@ -7,9 +7,16 @@ import torchvision.utils as utils
 from utils.utils import img_resize, load_segment
 import numpy as np
 
+import os
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 
+device_id = 0
+os.environ["CUDA_VISIBLE_DEVICES"]=f"{device_id}"
+
+device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
+
+print("Device: ", torch.cuda.get_device_name(0))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='photorealistic')
