@@ -33,7 +33,7 @@ parser.add_argument('--lr_decay', type=float, default=5e-5)
 
 parser.add_argument('--style_weight', type=float, default=1)
 parser.add_argument('--content_weight', type=float, default=0)
-parser.add_argument('--lap_weight', type=float, default=1500)
+parser.add_argument('--lap_weight', type=float, default=0)
 parser.add_argument('--rec_weight', type=float, default=10)
 parser.add_argument('--temporal_weight', type=float, default=60)
 
