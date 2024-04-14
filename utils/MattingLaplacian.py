@@ -32,12 +32,13 @@ def compute_laplacian(img, mask=None, eps=10 ** (-7), win_rad=1):
         img = np.asarray(img)
 
     # img must be in [0, 1]
-    img = 1.0 * img / 255.0
+    img = 1.0 * img #/ 255.0
 
     h, w, _ = img.shape
 
     win_size = (win_rad * 2 + 1) ** 2
     h, w, d = img.shape
+    #print("Debug, h, w, d:", h, w, d)
     # Number of window centre indices in h, w axes
     c_h, c_w = h - 2 * win_rad, w - 2 * win_rad
     win_diam = win_rad * 2 + 1
@@ -62,7 +63,8 @@ def compute_laplacian(img, mask=None, eps=10 ** (-7), win_rad=1):
     win_mu = np.mean(winI, axis=1, keepdims=True)
 
     win_var = np.einsum('...ji,...jk ->...ik', winI, winI) / win_size - np.einsum('...ji,...jk ->...ik', win_mu, win_mu)
-
+    
+    #print('Debug, winI:',winI.shape,'win_mu:',win_mu.shape,'win_var:',win_var.shape)
     inv = np.linalg.inv(win_var + (eps / win_size) * np.eye(3))
 
     X = np.einsum('...ij,...jk->...ik', winI - win_mu, inv)

@@ -1,3 +1,4 @@
 from utils.dataset_med import main, make_dataset_modality
-root = r'C:\Users\56991\Projects\Datasets\Task1\pelvis'
+#root = r'C:\Users\56991\Projects\Datasets\Task1\pelvis'
+root = r'E:\Projects\yang_proj\Task1\pelvis'
 main(root)

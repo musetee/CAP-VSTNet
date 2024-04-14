@@ -6,7 +6,7 @@ from torchvision import transforms
 from PIL import Image
 import torch
 from PIL import ImageFile
-#from utils.MattingLaplacian import compute_laplacian
+from utils.MattingLaplacian import compute_laplacian
 
 import nibabel as nib
 import numpy as np
@@ -55,8 +55,10 @@ def make_dataset_modality(dir, modality='ct'):
 
 
 class CTImageDataset(Dataset):
-    def __init__(self, root, transform=None, load_patient_number=1):
-        self.imgs_paths = sorted(make_dataset_modality(root))
+    def __init__(self, root, modality='ct', transform=None, 
+                 load_patient_number=1,
+                 use_lap=True, win_rad=1):
+        self.imgs_paths = sorted(make_dataset_modality(root, modality))
         self.transform = transform
         self.to_tensor = transforms.ToTensor()  # Might need adjustment for 3D
 
@@ -71,37 +73,55 @@ class CTImageDataset(Dataset):
             # Convert numpy array to PyTorch tensor
             # Note: You might need to add channel dimension or perform other adjustments
             volume_tensor = torch.tensor(volume_data, dtype=torch.float32)
-            volume_tensor = volume_tensor.permute(2, 1, 0) # [D, H, W]
-            volume_tensor = volume_tensor.unsqueeze(1)  # Add channel dimension [D, H, W] -> [D, 1, H, W]
+            volume_tensor = volume_tensor.permute(2, 1, 0) # [N, H, W]
+            volume_tensor = volume_tensor.unsqueeze(3)  # Add channel dimension [N, H, W] -> [N, H, W, 1]
+            # pasting grayscale information to all three channels.
+            volume_tensor = volume_tensor.repeat(1, 1, 1, 3)
+            #print('Debug, volume tensor:',volume_tensor.shape)
             if self.transform is not None:
                 volume_tensor = self.transform(volume_tensor)
-
-            print('volume tensor:',volume_tensor.shape)
             if all_slices is None:
                 all_slices = volume_tensor
             else:
                 all_slices = torch.cat((all_slices, volume_tensor), 0)
-        print('slices:',all_slices.shape)
+        print(f'slices of {modality} dataset:',all_slices.shape)
         self.all_slices = all_slices
+        self.use_lap = use_lap
+        self.win_rad = win_rad
 
     def __getitem__(self, index):
-        return {'img': self.all_slices[index]}
+        img = self.all_slices[index]
+        #print('Debug 1, img shape:',img.shape)
+        if self.use_lap:    
+            laplacian_m = compute_laplacian(img, win_rad=self.win_rad)
+        else:
+            laplacian_m = None
+        #print('Debug 2, laplacian_m:',laplacian_m.shape)
+        # permute img from [H, W, C] to [C, H, W]
+        img = img.permute(2, 0, 1)
+        return {'img': img, 'laplacian_m': laplacian_m}
 
     def __len__(self):
-        return len(self.imgs_paths)
+        return self.all_slices.shape[0]
 
 from monai.transforms import (
     ResizeWithPadOrCrop,
+    ScaleIntensity,
     Compose,
 )
 
-def get_data_loader_folder(input_folder, batch_size, new_size=288, height=256, width=256, num_workers=None, load_patient_number=1):
+def get_data_loader_folder(input_folder, modality, 
+                           batch_size, new_size=288, 
+                           height=256, width=256, 
+                           num_workers=None, load_patient_number=1):
     transform_list = []
-    transform_list = [ResizeWithPadOrCrop(spatial_size=[-1,height,width],mode="minimum")] + transform_list
+    transform_list = [ResizeWithPadOrCrop(spatial_size=[height,width, -1],mode="minimum")] + transform_list
+    transform_list = [ScaleIntensity(minv=0, maxv=1.0)]+ transform_list
+    #transform_list = [ScaleIntensity(factor=-0.9)]+ transform_list
     #transform_list = [transforms.Resize(new_size)] + transform_list
     transform = Compose(transform_list)
 
-    dataset = CTImageDataset(input_folder, transform=transform, load_patient_number=load_patient_number)
+    dataset = CTImageDataset(input_folder, modality=modality, transform=transform, load_patient_number=load_patient_number)
     
     if num_workers is None:
         num_workers = 0
@@ -109,12 +129,12 @@ def get_data_loader_folder(input_folder, batch_size, new_size=288, height=256, w
                         batch_size=batch_size, 
                         drop_last=True, 
                         num_workers=num_workers, 
-                        #sampler=InfiniteSamplerWrapper(dataset), 
-                        #collate_fn=collate_fn
+                        sampler=InfiniteSamplerWrapper(dataset), 
+                        collate_fn=collate_fn
                         )
     return loader
 
-def main(root = r'C:\Users\56991\Projects\Datasets\Task1\pelvis'):
+def main(root = r'C:\Users\56991\Projects\Datasets\Task1\pelvis',modality='ct'):
     # Example usage
     
     batch_size = 8
@@ -123,11 +143,11 @@ def main(root = r'C:\Users\56991\Projects\Datasets\Task1\pelvis'):
     width = 512
     num_workers = None
     load_patient_number = 1
-    loader = get_data_loader_folder(root, batch_size, new_size, height, width, num_workers, load_patient_number)
+    loader = get_data_loader_folder(root,modality, batch_size, new_size, height, width, num_workers, load_patient_number)
+    #print length of loader
+    print('Length of loader:',len(loader))
     for i, batch in enumerate(loader):
-        print(f'Batch {i}')
-        #print(len(batch['img']))
-        print(batch['img'].shape)
+        print(f'Batch {i}:',batch['img'].shape)
     print('Done')
 
 if __name__=='__main__':
